@@ -205,15 +205,6 @@
       }
     ],
     "extends": null,
-    "android": {
-      "target": [
-        {
-          "target": "apk",
-          "arch": ["arm64-v8a"]
-        }
-      ],
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
-    },
     "dmg": {
       "contents": [
         {
