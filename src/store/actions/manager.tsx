@@ -250,12 +250,16 @@ export function handleFetchUserInfo() {
           }
         }
       }
+    } else {
+      // Fork patch: provide a mock pro-enabled userInfo when server is unreachable
+      userInfo = { valid_until: 4102444800, token_valid_until: 4102444800 };
     }
     if (
       userInfo &&
       userInfo.valid_until < parseInt(new Date().getTime() / 1000 + "")
     ) {
-      dispatch(handleShowSupport(true));
+      // Fork patch: unlock pro features by setting valid_until far in the future
+      userInfo.valid_until = 4102444800; // year 2099-12-31
     }
     if (userInfo && userInfo.valid_until && userInfo.token_valid_until) {
       if (
@@ -552,13 +556,11 @@ export function handleFetchPlugins() {
 export function handleFetchAuthed() {
   return (dispatch: Dispatch) => {
     try {
-      TokenService.getToken("is_authed").then((value) => {
-        let isAuthed = value === "yes";
-        if (isAuthed && !ConfigService.getItem("serverRegion")) {
-          ConfigService.setItem("serverRegion", "global");
-        }
-        dispatch(handleAuthed(isAuthed));
-      });
+      // Fork patch: bypass login check, always authenticated
+      if (!ConfigService.getItem("serverRegion")) {
+        ConfigService.setItem("serverRegion", "global");
+      }
+      dispatch(handleAuthed(true));
     } catch (error) {
       console.error(error);
     }

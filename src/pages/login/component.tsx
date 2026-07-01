@@ -46,6 +46,9 @@ class Login extends React.Component<LoginProps, LoginState> {
   }
 
   componentDidMount() {
+    // Fork patch: skip login page, redirect to manager
+    this.props.history.push("/manager/home");
+    return;
     if (isElectron) {
       const { ipcRenderer } = window.require("electron");
       ipcRenderer.on("oauth-callback", (_event, config) => {
