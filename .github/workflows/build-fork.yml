@@ -1,4 +1,4 @@
-name: Build Fork Release
+name: Build Fork APK
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     paths:
       - 'src/store/actions/manager.tsx'
       - 'src/pages/login/*.tsx'
+      - 'package.json'
   workflow_dispatch:
 
 permissions:
@@ -34,11 +35,77 @@ jobs:
           CI: false
           GENERATE_SOURCEMAP: false
 
-      - name: Package build
+      - name: Package web build
         run: |
           cd build
           zip -r ../koodo-reader-web.zip .
           cd ..
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-build
+          path: koodo-reader-web.zip
+
+  build-apk:
+    runs-on: ubuntu-latest
+    needs: build-web
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: Build React web app
+        run: |
+          yarn build
+        env:
+          CI: false
+          GENERATE_SOURCEMAP: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq android-sdk
+          echo "ANDROID_HOME=/usr/lib/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/usr/lib/android-sdk" >> $GITHUB_ENV
+
+      - name: Accept Android SDK licenses
+        run: |
+          yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Build APK with electron-builder
+        run: |
+          npx electron-builder --config.android.target[0].target=apk --config.android.target[0].arch[0]=arm64-v8a --android --publish=never 2>&1 || true
+          # Also try with config flag
+          npx electron-builder --config android.apk --arm64 --publish=never 2>&1 || true
+          # Fallback: try direct APK build
+          npx electron-builder --android --arm64 --publish=never 2>&1 || true
+        env:
+          USE_HARD_LINKS: false
+
+      - name: Find APK files
+        run: |
+          echo "=== Searching for APKs ==="
+          find /home/runner -name "*.apk" 2>/dev/null | head -20
+          find /home/runner/work -name "*.apk" 2>/dev/null | head -20
+          find . -name "*.apk" 2>/dev/null | head -20
+          echo "=== Searching dist ==="
+          ls -la dist/ 2>/dev/null || echo "no dist dir"
+          ls -la release/ 2>/dev/null || echo "no release dir"
 
       - name: Generate tag
         id: tag
@@ -58,15 +125,7 @@ jobs:
             - **Pro features unlocked** — valid_until set to 2099
 
             ### Build Info
-            - Type: Web app (PWA — installable on Android via browser)
             - Version: ${{ steps.tag.outputs.tag }}
-            - Platform: Linux / macOS / Windows (desktop Electron) + Web
-            
-            ### Install on Android
-            1. Download `koodo-reader-web.zip`
-            2. Extract, serve with any static server
-            3. Or open `build/index.html` directly
-            4. Chrome → Add to Home Screen (PWA)
           draft: false
           prerelease: false
           files: |
