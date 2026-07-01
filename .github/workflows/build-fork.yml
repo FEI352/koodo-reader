@@ -1,0 +1,75 @@
+name: Build Fork Release
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'src/store/actions/manager.tsx'
+      - 'src/pages/login/*.tsx'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: Build React web app
+        run: |
+          yarn build
+        env:
+          CI: false
+          GENERATE_SOURCEMAP: false
+
+      - name: Package build
+        run: |
+          cd build
+          zip -r ../koodo-reader-web.zip .
+          cd ..
+
+      - name: Generate tag
+        id: tag
+        run: |
+          echo "tag=v$(date -d '8 hour' -u +3.%y.%m%d%H%M)-fork" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Koodo Reader Fork ${{ steps.tag.outputs.tag }}
+          tag_name: ${{ steps.tag.outputs.tag }}
+          body: |
+            ## Koodo Reader Fork (No Login + Pro Unlocked)
+
+            Fork from koodo-reader/koodo-reader with:
+            - **Login removed** — auto-redirects to main page
+            - **Pro features unlocked** — valid_until set to 2099
+
+            ### Build Info
+            - Type: Web app (PWA — installable on Android via browser)
+            - Version: ${{ steps.tag.outputs.tag }}
+            - Platform: Linux / macOS / Windows (desktop Electron) + Web
+            
+            ### Install on Android
+            1. Download `koodo-reader-web.zip`
+            2. Extract, serve with any static server
+            3. Or open `build/index.html` directly
+            4. Chrome → Add to Home Screen (PWA)
+          draft: false
+          prerelease: false
+          files: |
+            koodo-reader-web.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
